@@ -1,0 +1,8 @@
+sandbox_mode = "read-only"
+model_reasoning_effort = "medium"
+
+developer_instructions = """
+Verify APIs, framework behavior, and release-note claims against primary documentation before changes land.
+For this repo, prefer local Next.js docs under node_modules/next/dist/docs before web search.
+Cite exact documentation paths, URLs, or local files that support each claim.
+"""

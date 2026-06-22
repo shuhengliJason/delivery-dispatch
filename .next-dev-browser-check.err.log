@@ -1,0 +1,60 @@
+[browser] Google Maps JavaScript API has been loaded directly without loading=async. This can result in suboptimal performance. For best-practice loading patterns please see https://goo.gle/js-api-loading (https://maps.googleapis.com/maps/api/js?key=AIzaSyAOuIbKoXVuOnP9fmMO7d3QiaiZrVwBlsA&v=weekly&libraries=places:1589:245)
+[browser] Uncaught ReferenceError: optionLines is not defined
+    at VendorMenuManager (src/app/vendor/vendor-menu-manager.tsx:684:40)
+    at VendorPage (src\app\vendor\page.tsx:182:17)
+  682 |                             <textarea
+  683 |                                 id="option-lines"
+> 684 |                                 value={optionLines}
+      |                                        ^
+  685 |                                 required
+  686 |                                 disabled={isSavingOptions}
+  687 |                                 onChange={(event) => {
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] Google Maps JavaScript API has been loaded directly without loading=async. This can result in suboptimal performance. For best-practice loading patterns please see https://goo.gle/js-api-loading (https://maps.googleapis.com/maps/api/js?key=AIzaSyAOuIbKoXVuOnP9fmMO7d3QiaiZrVwBlsA&v=weekly&libraries=places:1589:245)
+[browser] Google Maps JavaScript API has been loaded directly without loading=async. This can result in suboptimal performance. For best-practice loading patterns please see https://goo.gle/js-api-loading (https://maps.googleapis.com/maps/api/js?key=AIzaSyAOuIbKoXVuOnP9fmMO7d3QiaiZrVwBlsA&v=weekly&libraries=places:1589:245)
+[browser] Google Maps JavaScript API has been loaded directly without loading=async. This can result in suboptimal performance. For best-practice loading patterns please see https://goo.gle/js-api-loading (https://maps.googleapis.com/maps/api/js?key=AIzaSyAOuIbKoXVuOnP9fmMO7d3QiaiZrVwBlsA&v=weekly&libraries=places:1589:245)
+[browser] Google Maps JavaScript API has been loaded directly without loading=async. This can result in suboptimal performance. For best-practice loading patterns please see https://goo.gle/js-api-loading (https://maps.googleapis.com/maps/api/js?key=AIzaSyAOuIbKoXVuOnP9fmMO7d3QiaiZrVwBlsA&v=weekly&libraries=places:1589:245)
+⨯ Error [PrismaClientValidationError]: 
+Invalid `{imported module ./src/lib/prisma.ts}["prisma"].restaurant.update()` invocation in
+C:\Users\Jinfan\food-delivery-app\delivery-dispatch\.next\dev\server\chunks\[root-of-the-server]__0~0yk1_._.js:253:177
+
+  250         status: 404
+  251     });
+  252 }
+→ 253 const updatedRestaurant = await {imported module ./src/lib/prisma.ts}["prisma"].restaurant.update({
+        where: {
+          id: "cmpp57p7s0001lcuqc8oxabd8"
+        },
+        data: {
+          featureImageUrl: null,
+          ~~~~~~~~~~~~~~~
+      ?   id?: String | StringFieldUpdateOperationsInput,
+      ?   name?: String | StringFieldUpdateOperationsInput,
+      ?   phone?: String | NullableStringFieldUpdateOperationsInput | Null,
+      ?   averagePrepMinutes?: Int | IntFieldUpdateOperationsInput,
+      ?   createdAt?: DateTime | DateTimeFieldUpdateOperationsInput,
+      ?   updatedAt?: DateTime | DateTimeFieldUpdateOperationsInput,
+      ?   address?: AddressUpdateOneRequiredWithoutRestaurantsNestedInput,
+      ?   vendor?: UserUpdateOneWithoutVendorRestaurantsNestedInput,
+      ?   menuItems?: MenuItemUpdateManyWithoutRestaurantNestedInput,
+      ?   orders?: OrderUpdateManyWithoutRestaurantNestedInput
+        },
+        select: {
+          id: true,
+          name: true,
+          featureImageUrl: true
+        }
+      })
+
+Unknown argument `featureImageUrl`. Available options are marked with ?.
+    at <unknown> (src\app\api\vendor\restaurants\[restaurantId]\route.ts:97:55)
+    at async PATCH (src\app\api\vendor\restaurants\[restaurantId]\route.ts:97:31)
+   95 |     }
+   96 |
+>  97 |     const updatedRestaurant = await prisma.restaurant.update({
+      |                                                       ^
+   98 |         where: {
+   99 |             id: restaurant.id,
+  100 |         }, {
+  clientVersion: '7.8.0'
+}

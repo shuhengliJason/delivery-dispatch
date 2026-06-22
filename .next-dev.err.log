@@ -1,0 +1,11 @@
+[browser] Image with src "/auth/dispatcher-feature.svg" was detected as the Largest Contentful Paint (LCP). Please add the `loading="eager"` property if this image is above the fold.
+Read more: https://nextjs.org/docs/app/api-reference/components/image#loading
+[browser] Image with src "/auth/dispatcher-feature.svg" was detected as the Largest Contentful Paint (LCP). Please add the `loading="eager"` property if this image is above the fold.
+Read more: https://nextjs.org/docs/app/api-reference/components/image#loading
+[browser] Image with src "/auth/dispatcher-feature.svg" was detected as the Largest Contentful Paint (LCP). Please add the `loading="eager"` property if this image is above the fold.
+Read more: https://nextjs.org/docs/app/api-reference/components/image#loading
+[browser] Image with src "/auth/dispatcher-feature.svg" was detected as the Largest Contentful Paint (LCP). Please add the `loading="eager"` property if this image is above the fold.
+Read more: https://nextjs.org/docs/app/api-reference/components/image#loading
+2026-06-22T03:49:16.450Z ERROR [Better Auth]: Invalid password
+2026-06-22T03:49:20.229Z ERROR [Better Auth]: Invalid password
+2026-06-22T03:49:35.689Z ERROR [Better Auth]: User not found { email: 'admin@example.com' }

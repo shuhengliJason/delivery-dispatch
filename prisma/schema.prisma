@@ -1,0 +1,570 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  CUSTOMER
+  VENDOR
+  DRIVER
+  DISPATCHER
+  ADMIN
+}
+
+enum RestaurantStaffRole {
+  OWNER
+  MANAGER
+  ORDER_STAFF
+  VIEWER
+}
+
+enum DispatcherRole {
+  ORDER_OPERATOR
+  USER_MANAGER
+  DISPATCHER_ADMIN
+}
+
+enum PermissionScope {
+  GLOBAL
+  DISPATCHER
+  RESTAURANT
+}
+
+enum OrderStatus {
+  CREATED
+  CONFIRMED
+  PREPARING
+  READY_FOR_PICKUP
+  ASSIGNED
+  ACCEPTED_BY_DRIVER
+  PICKED_UP
+  ON_THE_WAY
+  DELIVERED
+  CANCELLED
+}
+
+enum DelayStatus {
+  NONE
+  AT_RISK
+  DELAYED
+  RESOLVED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum BackgroundJobStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+}
+
+enum CircuitBreakerState {
+  CLOSED
+  OPEN
+  HALF_OPEN
+}
+
+enum DelayReason {
+  RESTAURANT_RUNNING_LATE
+  DRIVER_UNAVAILABLE
+  DRIVER_LATE_TO_PICKUP
+  TRAFFIC
+  WEATHER
+  CUSTOMER_UNREACHABLE
+  UNKNOWN
+}
+
+enum DriverStatus {
+  AVAILABLE
+  ASSIGNED
+  BUSY
+  OFFLINE
+}
+
+enum TimelineEventType {
+  ORDER_CREATED
+  PAYMENT_RECEIVED
+  ORDER_CONFIRMED
+  PREPARATION_STARTED
+  READY_FOR_PICKUP
+  DRIVER_ASSIGNED
+  DRIVER_ACCEPTED
+  ORDER_PICKED_UP
+  ORDER_ON_THE_WAY
+  ORDER_DELIVERED
+  ORDER_CANCELLED
+  DELAY_DETECTED
+  DELAY_RESOLVED
+  ETA_UPDATED
+  CUSTOMER_NOTIFIED
+}
+
+enum MenuOptionSelectionType {
+  SINGLE
+  MULTIPLE
+}
+
+model User {
+  id            String   @id @default(cuid())
+  name          String
+  email         String   @unique
+  emailVerified Boolean  @default(false)
+  image         String?
+  role          UserRole @default(CUSTOMER)
+  updatedById   String?
+
+  customerProfile   CustomerProfile?
+  dispatcherProfile DispatcherProfile?
+  driverProfile     DriverProfile?
+  vendorRestaurants Restaurant[]     @relation("RestaurantVendor")
+  restaurantStaff    RestaurantStaff[]
+  sessions          Session[]
+  accounts          Account[]
+  updatedBy         User?            @relation("UserLastUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  updatedUsers      User[]           @relation("UserLastUpdatedBy")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([updatedById])
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime
+  updatedAt DateTime
+  ipAddress String?
+  userAgent String?
+  userId    String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime
+  updatedAt             DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Verification {
+  id         String    @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime?
+  updatedAt  DateTime?
+}
+
+model RateLimit {
+  key         String   @id
+  count       Int
+  lastRequest BigInt
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([updatedAt])
+}
+
+model BackgroundJob {
+  id             String              @id @default(cuid())
+  type           String
+  status         BackgroundJobStatus @default(QUEUED)
+  payload        Json
+  runAt          DateTime            @default(now())
+  attempts       Int                 @default(0)
+  maxAttempts    Int                 @default(5)
+  lockedAt       DateTime?
+  lockedBy       String?
+  lastError      String?
+  idempotencyKey String?             @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, runAt])
+  @@index([type])
+  @@index([lockedAt])
+}
+
+model CircuitBreaker {
+  serviceKey      String              @id
+  state           CircuitBreakerState @default(CLOSED)
+  failureCount    Int                 @default(0)
+  successCount    Int                 @default(0)
+  openedUntil     DateTime?
+  lastFailureAt   DateTime?
+  lastSuccessAt   DateTime?
+  lastError       String?
+  halfOpenProbeAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([state])
+  @@index([openedUntil])
+}
+
+model Permission {
+  id          String          @id @default(cuid())
+  key         String          @unique
+  name        String
+  description String?
+  scope       PermissionScope
+
+  roles RolePermission[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([scope])
+}
+
+model AccessRole {
+  id          String          @id @default(cuid())
+  key         String          @unique
+  name        String
+  description String?
+  scope       PermissionScope
+  rank        Int             @default(0)
+
+  permissions RolePermission[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([scope])
+  @@index([rank])
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+
+  role       AccessRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+}
+
+model CustomerProfile {
+  id     String  @id @default(cuid())
+  userId String  @unique
+  phone  String?
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders Order[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model DispatcherProfile {
+  id     String         @id @default(cuid())
+  userId String         @unique
+  role   DispatcherRole @default(ORDER_OPERATOR)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([role])
+}
+
+model DriverProfile {
+  id                     String       @id @default(cuid())
+  userId                 String       @unique
+  status                 DriverStatus @default(AVAILABLE)
+  phone                  String?
+  currentLatitude        Float?
+  currentLongitude       Float?
+  activeDeliveryCount    Int          @default(0)
+  completedDeliveryCount Int          @default(0)
+  lateDeliveryCount      Int          @default(0)
+
+  user        User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assignments DeliveryAssignment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Restaurant {
+  id                 String  @id @default(cuid())
+  name               String
+  phone              String?
+  featureImageUrl    String?
+  averagePrepMinutes Int     @default(20)
+  vendorId           String?
+
+  addressId String
+  address   Address @relation(fields: [addressId], references: [id])
+  vendor    User?   @relation("RestaurantVendor", fields: [vendorId], references: [id], onDelete: SetNull)
+
+  menuItems MenuItem[]
+  orders    Order[]
+  staff     RestaurantStaff[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([vendorId])
+}
+
+model RestaurantStaff {
+  id           String              @id @default(cuid())
+  userId       String
+  restaurantId String
+  role         RestaurantStaffRole
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, restaurantId])
+  @@index([restaurantId])
+  @@index([userId])
+  @@index([role])
+}
+
+model Address {
+  id                String  @id @default(cuid())
+  line1             String
+  line2             String?
+  city              String
+  province          String
+  postalCode        String
+  country           String  @default("Canada")
+  latitude          Float?
+  longitude         Float?
+  formattedAddress  String?
+  googlePlaceId     String?
+  googleMapsUri     String?
+  addressComponents Json?
+
+  restaurants Restaurant[]
+  orders      Order[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([googlePlaceId])
+}
+
+model MenuItem {
+  id           String  @id @default(cuid())
+  restaurantId String
+  name         String
+  description  String?
+  category     String
+  priceCents   Int
+  isAvailable  Boolean @default(true)
+
+  restaurant Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  orderItems OrderItem[]
+  optionGroups MenuItemOptionGroup[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([restaurantId])
+}
+
+model MenuItemOptionGroup {
+  id            String                  @id @default(cuid())
+  menuItemId    String
+  name          String
+  selectionType MenuOptionSelectionType
+  isRequired    Boolean                 @default(false)
+  minSelections Int                     @default(0)
+  maxSelections Int?
+  isAvailable   Boolean                 @default(true)
+  sortOrder     Int                     @default(0)
+
+  menuItem MenuItem         @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  options  MenuItemOption[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([menuItemId])
+}
+
+model MenuItemOption {
+  id         String @id @default(cuid())
+  groupId    String
+  name       String
+  priceCents Int    @default(0)
+  isDefault  Boolean @default(false)
+  sortOrder  Int     @default(0)
+
+  group MenuItemOptionGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([groupId])
+}
+
+model Order {
+  id          String @id @default(cuid())
+  orderNumber Int    @unique @default(autoincrement())
+
+  customerId        String
+  restaurantId      String
+  deliveryAddressId String
+
+  status                  OrderStatus   @default(CREATED)
+  delayStatus             DelayStatus   @default(NONE)
+  paymentStatus           PaymentStatus @default(PENDING)
+  stripeCheckoutSessionId String?       @unique
+  stripePaymentIntentId   String?
+
+  customerNameSnapshot    String
+  restaurantNameSnapshot  String
+  deliveryAddressSnapshot String
+
+  subtotalCents    Int
+  taxCents         Int
+  deliveryFeeCents Int
+  totalCents       Int
+
+  estimatedDeliveryAt DateTime
+  placedAt            DateTime  @default(now())
+  paidAt              DateTime?
+  confirmedAt         DateTime?
+  readyForPickupAt    DateTime?
+  pickedUpAt          DateTime?
+  deliveredAt         DateTime?
+  cancelledAt         DateTime?
+
+  customer        CustomerProfile @relation(fields: [customerId], references: [id])
+  restaurant      Restaurant      @relation(fields: [restaurantId], references: [id])
+  deliveryAddress Address         @relation(fields: [deliveryAddressId], references: [id])
+
+  items          OrderItem[]
+  assignments    DeliveryAssignment[]
+  timelineEvents OrderTimelineEvent[]
+  delayEvents    DelayEvent[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([delayStatus])
+  @@index([paymentStatus])
+  @@index([estimatedDeliveryAt])
+  @@index([restaurantId])
+  @@index([customerId])
+}
+
+model OrderItem {
+  id         String  @id @default(cuid())
+  orderId    String
+  menuItemId String?
+
+  nameSnapshot   String
+  unitPriceCents Int
+  optionTotalCents Int @default(0)
+  selectedOptionsSnapshot Json?
+  quantity       Int
+  lineTotalCents Int
+
+  order    Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItem MenuItem? @relation(fields: [menuItemId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orderId])
+}
+
+model DeliveryAssignment {
+  id       String @id @default(cuid())
+  orderId  String
+  driverId String
+
+  acceptedAt  DateTime?
+  pickedUpAt  DateTime?
+  deliveredAt DateTime?
+  cancelledAt DateTime?
+
+  order  Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  driver DriverProfile @relation(fields: [driverId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orderId])
+  @@index([driverId])
+}
+
+model OrderTimelineEvent {
+  id       String            @id @default(cuid())
+  orderId  String
+  type     TimelineEventType
+  title    String
+  message  String?
+  metadata Json?
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([orderId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+model DelayEvent {
+  id                 String      @id @default(cuid())
+  orderId            String
+  reason             DelayReason
+  delayMinutes       Int
+  message            String?
+  aiGeneratedMessage String?
+  resolvedAt         DateTime?
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orderId])
+  @@index([reason])
+  @@index([resolvedAt])
+}

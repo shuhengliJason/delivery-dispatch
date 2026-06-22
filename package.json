@@ -1,0 +1,44 @@
+{
+    "name": "delivery-dispatch",
+    "version": "0.1.0",
+    "private": true,
+    "scripts": {
+        "dev": "next dev",
+        "build": "next build",
+        "start": "next start",
+        "jobs:worker": "tsx src/jobs/run-worker.ts",
+        "lint": "eslint",
+        "test": "vitest run",
+        "prisma:studio": "prisma studio",
+        "prisma:migrate": "prisma migrate dev",
+        "prisma:seed": "prisma db seed"
+    },
+    "dependencies": {
+        "@better-auth/prisma-adapter": "^1.6.12",
+        "@prisma/adapter-pg": "^7.8.0",
+        "@prisma/client": "^7.8.0",
+        "better-auth": "^1.6.12",
+        "next": "16.2.6",
+        "pg": "^8.21.0",
+        "react": "19.2.4",
+        "react-dom": "19.2.4",
+        "stripe": "^22.2.0"
+    },
+    "devDependencies": {
+        "@tailwindcss/postcss": "^4",
+        "@types/node": "^20",
+        "@types/pg": "^8.20.0",
+        "@types/react": "^19",
+        "@types/react-dom": "^19",
+        "eslint": "^9",
+        "eslint-config-next": "16.2.6",
+        "prisma": "^7.8.0",
+        "tailwindcss": "^4",
+        "tsx": "^4.22.3",
+        "typescript": "^5",
+        "vitest": "^4.1.8"
+    },
+    "prisma": {
+        "seed": "tsx prisma/seed.ts"
+    }
+}
