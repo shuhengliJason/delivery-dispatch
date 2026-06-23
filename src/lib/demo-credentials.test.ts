@@ -25,7 +25,9 @@ describe('demo credentials', () => {
         ]));
         expect(DEMO_PASSWORD).toBe('demo1234');
         expect(demoAccounts.every((account) => {
-            return account.email.endsWith('@example.com') && account.route.startsWith('/');
+            return account.email.endsWith('@example.com')
+                && account.route.startsWith('/')
+                && account.experienceKey.length > 0;
         })).toBe(true);
     });
 });
