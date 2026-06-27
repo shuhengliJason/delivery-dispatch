@@ -7,6 +7,10 @@
         "build": "next build",
         "start": "next start",
         "jobs:worker": "tsx src/jobs/run-worker.ts",
+        "logs:consumer": "tsx src/logging/run-consumer.ts",
+        "logs:sample": "tsx src/logging/send-sample-log.ts",
+        "search:processor": "tsx src/search/run-restaurant-search-processor.ts",
+        "search:publish-restaurants": "tsx src/search/publish-restaurant-search-snapshot.ts",
         "lint": "eslint",
         "test": "vitest run",
         "prisma:studio": "prisma studio",
@@ -19,10 +23,12 @@
         "@prisma/adapter-pg": "^7.8.0",
         "@prisma/client": "^7.8.0",
         "better-auth": "^1.6.12",
+        "kafkajs": "^2.2.4",
         "next": "16.2.6",
         "pg": "^8.21.0",
         "react": "19.2.4",
         "react-dom": "19.2.4",
+        "redis": "^6.0.1",
         "stripe": "^22.2.0"
     },
     "devDependencies": {

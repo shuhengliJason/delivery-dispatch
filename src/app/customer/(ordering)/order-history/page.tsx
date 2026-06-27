@@ -2,10 +2,15 @@ import { UserRole } from '@prisma/client';
 import { redirect } from 'next/navigation';
 
 import { getCurrentUser } from '@/lib/current-user';
-import CustomerApp from '../customer-app';
 
 export const dynamic = 'force-dynamic';
 
+/**
+ * Server-side guard for the order history tab.
+ *
+ * The page returns no UI because the persistent customer shell decides which
+ * view to show from the URL.
+ */
 export default async function CustomerOrderHistoryPage() {
     const user = await getCurrentUser();
 
@@ -17,10 +22,5 @@ export default async function CustomerOrderHistoryPage() {
         redirect('/sign-in?redirectTo=/customer/order-history&switchAccount=1');
     }
 
-    return (
-        <CustomerApp
-            key="customer-order-history"
-            view="history"
-        />
-    );
+    return null;
 }

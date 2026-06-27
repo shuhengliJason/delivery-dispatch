@@ -1,4 +1,5 @@
 import { Prisma, UserRole } from '@prisma/client';
+import { after } from 'next/server';
 import { type NextRequest, NextResponse } from 'next/server';
 
 import { auth } from '@/lib/auth';
@@ -9,6 +10,7 @@ import {
     enforceUserRateLimit,
 } from '@/lib/rate-limit';
 import { requireRestaurantPermission } from '@/lib/vendor-permissions';
+import { publishRestaurantSearchEvent } from '@/search/restaurant-search-events';
 
 type UpdateRestaurantBody = {
     phone?: unknown;
@@ -266,6 +268,23 @@ export async function PATCH(
             averagePrepMinutes: true,
             address: true,
         },
+    });
+
+    // After the DB update succeeds, publish a lightweight change event.
+    // The Kafka search processor will re-read the restaurant from Postgres and
+    // update the OpenSearch autocomplete document.
+    after(async () => {
+        try {
+            await publishRestaurantSearchEvent({
+                type: 'restaurant.changed',
+                restaurantId: updatedRestaurant.id,
+            });
+        } catch (error) {
+            console.warn('Failed to publish restaurant search change event', {
+                error,
+                restaurantId: updatedRestaurant.id,
+            });
+        }
     });
 
     return NextResponse.json({ restaurant: updatedRestaurant });

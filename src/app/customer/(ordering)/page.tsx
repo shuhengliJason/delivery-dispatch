@@ -2,10 +2,15 @@ import { UserRole } from '@prisma/client';
 import { redirect } from 'next/navigation';
 
 import { getCurrentUser } from '@/lib/current-user';
-import CustomerApp from './customer-app';
 
 export const dynamic = 'force-dynamic';
 
+/**
+ * Server-side guard for the restaurant browsing route.
+ *
+ * The shared layout renders the actual customer app; this page only protects
+ * the route and returns `null` when the user is allowed through.
+ */
 export default async function CustomerPage() {
     const user = await getCurrentUser();
 
@@ -17,5 +22,5 @@ export default async function CustomerPage() {
         redirect('/sign-in?redirectTo=/customer&switchAccount=1');
     }
 
-    return <CustomerApp key="customer-home" />;
+    return null;
 }

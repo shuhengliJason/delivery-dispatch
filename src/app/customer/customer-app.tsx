@@ -22,6 +22,19 @@ type Restaurant = {
     };
 };
 
+type RestaurantAutocompleteSuggestion = {
+    address: {
+        city: string;
+        line1: string;
+        province: string;
+    };
+    averagePrepMinutes: number;
+    id: string;
+    menuItemCount: number;
+    name: string;
+    score: number;
+};
+
 type MenuItem = {
     id: string;
     restaurantId: string;
@@ -117,6 +130,11 @@ type CreateOrderApiResponse = {
 type CustomerOrdersApiResponse = {
     orders?: CustomerOrder[];
     error?: string;
+};
+
+type RestaurantAutocompleteApiResponse = {
+    prefix: string;
+    suggestions?: RestaurantAutocompleteSuggestion[];
 };
 
 type FetchCustomerOrdersOptions = {
@@ -305,7 +323,7 @@ export default function CustomerPage({
     const [session, setSession] = useState<CustomerSession | null>(null);
     const [isSessionPending, setIsSessionPending] = useState(true);
     const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
-    const [selectedRestaurantId, setSelectedRestaurantId] = useState<string | null>(initialRestaurantId);
+    const selectedRestaurantId = initialRestaurantId;
     const [cartItems, setCartItems] = useState<CartItem[]>([]);
     const [deliveryAddress, setDeliveryAddress] = useState('');
     const [selectedDeliveryPlace, setSelectedDeliveryPlace] = useState<SelectedDeliveryPlace | null>(null);
@@ -319,6 +337,10 @@ export default function CustomerPage({
     const [isPlacingOrder, setIsPlacingOrder] = useState(false);
     const [isSigningOut, setIsSigningOut] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
+    const [restaurantSearch, setRestaurantSearch] = useState('');
+    // Backend suggestions come from the Redis -> OpenSearch -> Postgres autocomplete route.
+    const [autocompleteSuggestions, setAutocompleteSuggestions] = useState<RestaurantAutocompleteSuggestion[]>([]);
+    const [isLoadingAutocomplete, setIsLoadingAutocomplete] = useState(false);
     const checkoutStatus = searchParams.get('checkout');
     const checkoutOrderId = searchParams.get('orderId');
     const checkoutSessionId = searchParams.get('session_id');
@@ -452,6 +474,27 @@ export default function CustomerPage({
         });
     }, [menuItems]);
 
+    const visibleRestaurants = useMemo(() => {
+        const normalizedSearch = restaurantSearch.trim().toLowerCase();
+
+        if (!normalizedSearch) {
+            return restaurants;
+        }
+
+        // Local filtering keeps the grid responsive while the dropdown shows
+        // ranked suggestions from the backend autocomplete pipeline.
+        return restaurants.filter((restaurantOption) => {
+            return [
+                restaurantOption.name,
+                restaurantOption.address.line1,
+                restaurantOption.address.city,
+                restaurantOption.address.province,
+            ].some((value) => {
+                return value.toLowerCase().includes(normalizedSearch);
+            });
+        });
+    }, [restaurantSearch, restaurants]);
+
     const selectedRestaurant = restaurants.find((restaurant) => {
         return restaurant.id === selectedRestaurantId;
     }) ?? null;
@@ -484,21 +527,32 @@ export default function CustomerPage({
     }, [selectedMenuItems]);
 
     const restaurant = selectedRestaurant;
+    // The customer shell persists across tab/restaurant routes, so keep cart
+    // state alive but only show/order items for the active restaurant.
+    const activeCartItems = useMemo(() => {
+        if (!selectedRestaurantId) {
+            return [];
+        }
+
+        return cartItems.filter((cartItem) => {
+            return cartItem.menuItem.restaurantId === selectedRestaurantId;
+        });
+    }, [cartItems, selectedRestaurantId]);
 
     const subtotalCents = useMemo(() => {
-        return cartItems.reduce((total, cartItem) => {
+        return activeCartItems.reduce((total, cartItem) => {
             return total + getCartItemUnitCents(cartItem) * cartItem.quantity;
         }, 0);
-    }, [cartItems]);
+    }, [activeCartItems]);
 
     const taxCents = Math.round(subtotalCents * 0.12);
-    const deliveryFeeCents = cartItems.length > 0 ? 399 : 0;
+    const deliveryFeeCents = activeCartItems.length > 0 ? 399 : 0;
     const totalCents = subtotalCents + taxCents + deliveryFeeCents;
 
     const canPlaceOrder = Boolean(
         session?.user
             && deliveryAddress.trim()
-            && cartItems.length > 0
+            && activeCartItems.length > 0
             && restaurant
             && !isPlacingOrder,
     );
@@ -551,11 +605,6 @@ export default function CustomerPage({
     }
 
     function openMenuItem(menuItem: MenuItem): void {
-        if (selectedRestaurantId !== menuItem.restaurantId) {
-            setSelectedRestaurantId(menuItem.restaurantId);
-            setCartItems([]);
-        }
-
         setCreatedOrder(null);
         setErrorMessage(null);
         setOptionErrorMessage(null);
@@ -567,6 +616,18 @@ export default function CustomerPage({
 
         setConfiguringMenuItem(menuItem);
         setOptionSelections(getInitialOptionSelections(menuItem));
+    }
+
+    /**
+     * Opens a restaurant picked from the autocomplete dropdown.
+     *
+     * The persistent customer shell reads the new URL and switches views without
+     * remounting the whole customer app.
+     */
+    function openRestaurantFromAutocomplete(restaurantId: string): void {
+        setRestaurantSearch('');
+        setAutocompleteSuggestions([]);
+        router.push(`/customer/vendors/${restaurantId}`);
     }
 
     function addConfiguredCartItem(
@@ -758,7 +819,7 @@ export default function CustomerPage({
                     deliveryAddress: deliveryAddress.trim(),
                     deliveryLocation: selectedDeliveryPlace,
                     restaurantId: restaurant.id,
-                    items: cartItems.map((cartItem) => {
+                    items: activeCartItems.map((cartItem) => {
                         return {
                             menuItemId: cartItem.menuItem.id,
                             quantity: cartItem.quantity,
@@ -806,6 +867,61 @@ export default function CustomerPage({
         setSelectedDeliveryPlace(place);
         setErrorMessage(null);
     }, []);
+
+    /**
+     * Debounced autocomplete request.
+     *
+     * Waiting 180ms prevents every keystroke from becoming a backend request.
+     * AbortController cancels stale requests so older responses cannot overwrite
+     * newer suggestions when the user types quickly.
+     */
+    useEffect(() => {
+        const prefix = restaurantSearch.trim();
+
+        if (!isRestaurantHomeView || prefix.length === 0) {
+            return;
+        }
+
+        const controller = new AbortController();
+        const timeout = window.setTimeout(() => {
+            const fetchSuggestions = async (): Promise<void> => {
+                try {
+                    setIsLoadingAutocomplete(true);
+                    const params = new URLSearchParams({
+                        limit: '8',
+                        prefix,
+                    });
+                    const response = await fetch(`/api/restaurants/autocomplete?${params.toString()}`, {
+                        signal: controller.signal,
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Failed to fetch restaurant suggestions.');
+                    }
+
+                    const data = await response.json() as RestaurantAutocompleteApiResponse;
+
+                    setAutocompleteSuggestions(data.suggestions ?? []);
+                } catch (error) {
+                    if (!controller.signal.aborted) {
+                        console.error(error);
+                        setAutocompleteSuggestions([]);
+                    }
+                } finally {
+                    if (!controller.signal.aborted) {
+                        setIsLoadingAutocomplete(false);
+                    }
+                }
+            };
+
+            void fetchSuggestions();
+        }, 180);
+
+        return () => {
+            window.clearTimeout(timeout);
+            controller.abort();
+        };
+    }, [isRestaurantHomeView, restaurantSearch]);
 
     async function handleSignOut(): Promise<void> {
         if (!confirmSignOut()) {
@@ -936,7 +1052,7 @@ export default function CustomerPage({
                         <div className="flex flex-col gap-3 lg:items-end">
                             {isRestaurantView && (
                                 <div className="rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white shadow-sm">
-                                    {cartItems.length} cart item{cartItems.length === 1 ? '' : 's'}
+                                    {activeCartItems.length} cart item{activeCartItems.length === 1 ? '' : 's'}
                                 </div>
                             )}
 
@@ -1235,7 +1351,7 @@ export default function CustomerPage({
 
                         {!isLoadingMenu && restaurants.length > 0 && !selectedRestaurant && (
                             <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                                <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                                <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                                     <div>
                                         <h2 className="text-xl font-bold text-slate-950">
                                             Available Restaurants
@@ -1244,10 +1360,77 @@ export default function CustomerPage({
                                             Pick a kitchen to browse its menu.
                                         </p>
                                     </div>
+
+                                    <div className="relative w-full lg:max-w-sm">
+                                        <label
+                                            htmlFor="restaurant-search"
+                                            className="sr-only"
+                                        >
+                                            Search restaurants
+                                        </label>
+                                        <input
+                                            id="restaurant-search"
+                                            type="search"
+                                            value={restaurantSearch}
+                                            onChange={(event) => {
+                                                const nextValue = event.target.value;
+
+                                                setRestaurantSearch(nextValue);
+
+                                                if (!nextValue.trim()) {
+                                                    setAutocompleteSuggestions([]);
+                                                    setIsLoadingAutocomplete(false);
+                                                }
+                                            }}
+                                            placeholder="Search restaurants"
+                                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-950 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-cyan-600 focus:ring-2 focus:ring-cyan-100"
+                                        />
+
+                                        {(restaurantSearch.trim() || isLoadingAutocomplete) && (
+                                            <div className="absolute right-0 left-0 z-20 mt-2 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
+                                                {isLoadingAutocomplete ? (
+                                                    <p className="px-3 py-2 text-sm text-slate-500">
+                                                        Searching...
+                                                    </p>
+                                                ) : autocompleteSuggestions.length > 0 ? (
+                                                    <div className="max-h-80 overflow-y-auto py-1">
+                                                        {autocompleteSuggestions.map((suggestion) => {
+                                                            return (
+                                                                <button
+                                                                    key={suggestion.id}
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        openRestaurantFromAutocomplete(suggestion.id);
+                                                                    }}
+                                                                    className="block w-full px-3 py-2 text-left hover:bg-slate-50"
+                                                                >
+                                                                    <span className="block text-sm font-semibold text-slate-950">
+                                                                        {suggestion.name}
+                                                                    </span>
+                                                                    <span className="mt-0.5 block text-xs text-slate-500">
+                                                                        {suggestion.address.line1}, {suggestion.address.city} / {suggestion.menuItemCount} items / {suggestion.averagePrepMinutes} min
+                                                                    </span>
+                                                                </button>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                ) : (
+                                                    <p className="px-3 py-2 text-sm text-slate-500">
+                                                        No matches found.
+                                                    </p>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
 
+                                {visibleRestaurants.length === 0 ? (
+                                    <p className="mt-5 rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-500">
+                                        No restaurants match your search.
+                                    </p>
+                                ) : (
                                 <div className="mt-5 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-                                    {restaurants.map((restaurantOption) => {
+                                    {visibleRestaurants.map((restaurantOption) => {
                                         const restaurantMenuItems = menuItems.filter((item) => {
                                             return item.restaurantId === restaurantOption.id;
                                         });
@@ -1298,6 +1481,7 @@ export default function CustomerPage({
                                         );
                                     })}
                                 </div>
+                                )}
                             </section>
                         )}
 
@@ -1402,7 +1586,7 @@ export default function CustomerPage({
                             </p>
                         )}
 
-                        {cartItems.length === 0 ? (
+                        {activeCartItems.length === 0 ? (
                             <p className="mt-4 rounded-lg bg-slate-50 p-4 text-sm text-slate-500">
                                 {selectedRestaurant
                                     ? 'Your cart is empty. Add items from the menu to start an order.'
@@ -1410,7 +1594,7 @@ export default function CustomerPage({
                             </p>
                         ) : (
                             <div className="mt-4 divide-y divide-slate-200">
-                                {cartItems.map((cartItem) => {
+                                {activeCartItems.map((cartItem) => {
                                     return (
                                         <div
                                             key={cartItem.cartKey}

@@ -124,6 +124,120 @@ Run the background worker in a separate terminal when testing queued jobs:
 npm run jobs:worker
 ```
 
+Start local infrastructure with Docker:
+
+```bash
+docker compose up -d postgres redis kafka opensearch opensearch-dashboards
+```
+
+Kafka is exposed at:
+
+```text
+localhost:9092
+```
+
+Inside Docker Compose, other services can reach it at:
+
+```text
+kafka:29092
+```
+
+Redis is exposed at:
+
+```text
+localhost:6379
+```
+
+OpenSearch is exposed at:
+
+```text
+http://localhost:9200
+```
+
+OpenSearch Dashboards is available at:
+
+[http://localhost:5601](http://localhost:5601)
+
+### Searchable Logs
+
+Run the log consumer in a separate terminal:
+
+```bash
+npm run logs:consumer
+```
+
+Publish a sample structured log:
+
+```bash
+npm run logs:sample
+```
+
+In OpenSearch Dashboards, create an index pattern for:
+
+```text
+app-logs-*
+```
+
+Use `timestamp` as the time field, then open Discover to search the logs.
+
+Logs are written to daily OpenSearch indexes such as:
+
+```text
+app-logs-2026.06.25
+```
+
+To also publish background worker logs to Kafka while the worker runs:
+
+```bash
+$env:LOG_TO_KAFKA="1"; npm run jobs:worker
+```
+
+To publish order checkout logs from the app while creating customer orders:
+
+```bash
+$env:LOG_TO_KAFKA="1"; npm run dev
+```
+
+Search for:
+
+```text
+context.eventName : "order.checkout_started"
+```
+
+### Restaurant Autocomplete Pipeline
+
+The local autocomplete pipeline mirrors the production-style design:
+
+```text
+Postgres restaurants
+  -> Kafka restaurant.search.events
+  -> search processor
+  -> OpenSearch restaurants-autocomplete-v1
+  -> /api/restaurants/autocomplete
+  -> Redis hot-prefix cache
+  -> customer search box
+```
+
+Run the processor:
+
+```bash
+npm run search:processor
+```
+
+Publish current restaurants from Postgres into Kafka:
+
+```bash
+npm run search:publish-restaurants
+```
+
+Query the API:
+
+```bash
+curl "http://localhost:3000/api/restaurants/autocomplete?prefix=amber&limit=8"
+```
+
+The API checks Redis first, then OpenSearch, then falls back to Postgres if the search stack is unavailable.
+
 ## Useful Scripts
 
 ```bash
@@ -134,6 +248,10 @@ npm run lint
 npm run test
 npm run prisma:seed
 npm run jobs:worker
+npm run logs:consumer
+npm run logs:sample
+npm run search:processor
+npm run search:publish-restaurants
 ```
 
 ## Payment Testing

@@ -243,6 +243,166 @@ async function main(): Promise<void> {
         },
     });
 
+    const dummyRestaurantTemplates = Array.from({ length: 100 }, (_, index) => {
+        const cuisines = [
+            {
+                category: 'Noodles',
+                cuisine: 'Noodle Bar',
+                dish: 'House Noodle Bowl',
+                side: 'Cucumber Salad',
+            },
+            {
+                category: 'Rice Bowls',
+                cuisine: 'Rice Kitchen',
+                dish: 'Teriyaki Rice Bowl',
+                side: 'Edamame Cup',
+            },
+            {
+                category: 'Sandwiches',
+                cuisine: 'Deli',
+                dish: 'Market Club Sandwich',
+                side: 'Kettle Chips',
+            },
+            {
+                category: 'Salads',
+                cuisine: 'Greens',
+                dish: 'Harvest Salad',
+                side: 'Tomato Soup',
+            },
+            {
+                category: 'Tacos',
+                cuisine: 'Taqueria',
+                dish: 'Crispy Cauliflower Tacos',
+                side: 'Street Corn',
+            },
+            {
+                category: 'Pizza',
+                cuisine: 'Pizzeria',
+                dish: 'Roasted Mushroom Pizza',
+                side: 'Garlic Flatbread',
+            },
+            {
+                category: 'Sushi',
+                cuisine: 'Sushi Counter',
+                dish: 'California Roll Set',
+                side: 'Miso Soup',
+            },
+            {
+                category: 'Burgers',
+                cuisine: 'Burger Stand',
+                dish: 'Smash Burger',
+                side: 'Seasoned Fries',
+            },
+            {
+                category: 'Curry',
+                cuisine: 'Curry House',
+                dish: 'Butter Chicken Curry',
+                side: 'Garlic Naan',
+            },
+            {
+                category: 'Breakfast',
+                cuisine: 'Cafe',
+                dish: 'Breakfast Wrap',
+                side: 'Fruit Cup',
+            },
+        ];
+        const neighborhoods = [
+            'Kitsilano',
+            'Mount Pleasant',
+            'Gastown',
+            'Yaletown',
+            'Fairview',
+            'Commercial Drive',
+            'West End',
+            'Riley Park',
+            'Chinatown',
+            'Strathcona',
+        ];
+        const adjectives = [
+            'Amber',
+            'Banyan',
+            'Cedar',
+            'Dawn',
+            'Evergreen',
+            'Harbour',
+            'Jade',
+            'Lantern',
+            'Maple',
+            'Pacific',
+        ];
+        const cuisine = cuisines[index % cuisines.length];
+        const neighborhood = neighborhoods[index % neighborhoods.length];
+        const adjective = adjectives[Math.floor(index / cuisines.length) % adjectives.length];
+
+        return {
+            ...cuisine,
+            addressLine: `${200 + index} ${neighborhood} Ave`,
+            latitude: 49.24 + (index % 20) * 0.002,
+            longitude: -123.16 + (index % 25) * 0.002,
+            name: `${adjective} ${neighborhood} ${cuisine.cuisine}`,
+            phone: `604-555-${String(2000 + index).padStart(4, '0')}`,
+            postalCode: `V6${String.fromCharCode(65 + (index % 20))} ${index % 10}A${index % 10}`,
+            prepMinutes: 12 + (index % 24),
+        };
+    });
+
+    const dummyRestaurants: Array<{
+        category: string;
+        dish: string;
+        restaurant: typeof restaurant;
+        side: string;
+    }> = [];
+
+    for (const template of dummyRestaurantTemplates) {
+        const address = await prisma.address.create({
+            data: {
+                line1: template.addressLine,
+                city: 'Vancouver',
+                province: 'BC',
+                postalCode: template.postalCode,
+                country: 'Canada',
+                latitude: template.latitude,
+                longitude: template.longitude,
+            },
+        });
+
+        const createdRestaurant = await prisma.restaurant.create({
+            data: {
+                name: template.name,
+                phone: template.phone,
+                featureImageUrl: null,
+                averagePrepMinutes: template.prepMinutes,
+                addressId: address.id,
+            },
+        });
+
+        dummyRestaurants.push({
+            category: template.category,
+            dish: template.dish,
+            restaurant: createdRestaurant,
+            side: template.side,
+        });
+    }
+
+    const dummyMenuItemData = dummyRestaurants.flatMap((dummyRestaurant, index) => {
+        return [
+            {
+                restaurantId: dummyRestaurant.restaurant.id,
+                name: dummyRestaurant.dish,
+                description: `A seeded ${dummyRestaurant.category.toLowerCase()} favorite for autocomplete and browse testing.`,
+                category: dummyRestaurant.category,
+                priceCents: 1099 + (index % 12) * 100,
+            },
+            {
+                restaurantId: dummyRestaurant.restaurant.id,
+                name: dummyRestaurant.side,
+                description: 'Simple seeded side item for local ordering demos.',
+                category: 'Sides',
+                priceCents: 499 + (index % 8) * 75,
+            },
+        ];
+    });
+
     const menuItems = await prisma.menuItem.createManyAndReturn({
         data: [
             {
@@ -364,6 +524,7 @@ async function main(): Promise<void> {
                 category: 'Desserts',
                 priceCents: 849,
             },
+            ...dummyMenuItemData,
         ],
     });
 

@@ -4,13 +4,17 @@ import {
     TimelineEventType,
     UserRole,
 } from '@prisma/client';
-import { type NextRequest, NextResponse } from 'next/server';
+import { after, type NextRequest, NextResponse } from 'next/server';
 
 import { auth } from '@/lib/auth';
 import { calculateDeliveryEta } from '@/lib/delivery-eta';
 import { syncPaidCheckoutSession } from '@/lib/order-payment';
 import { prisma } from '@/lib/prisma';
 import { getAppUrl, getStripe, isStripeConfigured } from '@/lib/stripe';
+import {
+    logOrderCheckoutStartFailed,
+    logOrderCheckoutStarted,
+} from '@/logging/order-events';
 
 type OrderItemInput = {
     menuItemId?: unknown;
@@ -380,6 +384,9 @@ export async function POST(request: NextRequest) {
     const subtotalCents = validConfiguredItems.reduce((total, item) => {
         return total + item.unitTotalCents * item.input.quantity;
     }, 0);
+    const itemCount = validConfiguredItems.reduce((total, item) => {
+        return total + item.input.quantity;
+    }, 0);
     const taxCents = Math.round(subtotalCents * taxRate);
     const totalCents = subtotalCents + taxCents + deliveryFeeCents;
     const deliveryEta = await calculateDeliveryEta({
@@ -539,6 +546,21 @@ export async function POST(request: NextRequest) {
             },
         });
 
+        after(() => {
+            return logOrderCheckoutStarted({
+                customerId: customerProfile.id,
+                itemCount,
+                orderId: order.id,
+                orderNumber: order.orderNumber,
+                paymentStatus: order.paymentStatus,
+                restaurantId,
+                status: order.status,
+                totalCents: order.totalCents,
+            }).catch((logError: unknown) => {
+                console.error('Could not publish order checkout log', logError);
+            });
+        });
+
         return NextResponse.json({
             order,
             checkoutUrl: checkoutSession.url,
@@ -553,6 +575,21 @@ export async function POST(request: NextRequest) {
             data: {
                 paymentStatus: PaymentStatus.FAILED,
             },
+        });
+
+        after(() => {
+            return logOrderCheckoutStartFailed({
+                customerId: customerProfile.id,
+                itemCount,
+                orderId: order.id,
+                orderNumber: order.orderNumber,
+                paymentStatus: PaymentStatus.FAILED,
+                restaurantId,
+                status: order.status,
+                totalCents: order.totalCents,
+            }, error).catch((logError: unknown) => {
+                console.error('Could not publish order checkout failure log', logError);
+            });
         });
 
         return NextResponse.json({

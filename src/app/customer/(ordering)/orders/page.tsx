@@ -2,10 +2,15 @@ import { UserRole } from '@prisma/client';
 import { redirect } from 'next/navigation';
 
 import { getCurrentUser } from '@/lib/current-user';
-import CustomerApp from '../customer-app';
 
 export const dynamic = 'force-dynamic';
 
+/**
+ * Server-side guard for the current orders tab.
+ *
+ * Rendering stays in the shared customer shell so tab navigation does not
+ * remount the customer app.
+ */
 export default async function CustomerCurrentOrdersPage() {
     const user = await getCurrentUser();
 
@@ -17,10 +22,5 @@ export default async function CustomerCurrentOrdersPage() {
         redirect('/sign-in?redirectTo=/customer/orders&switchAccount=1');
     }
 
-    return (
-        <CustomerApp
-            key="customer-current-orders"
-            view="orders"
-        />
-    );
+    return null;
 }
