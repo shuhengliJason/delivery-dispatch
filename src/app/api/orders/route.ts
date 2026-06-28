@@ -478,6 +478,7 @@ export async function POST(request: NextRequest) {
         const checkoutSession = await stripe.checkout.sessions.create({
             mode: 'payment',
             customer_email: user.email,
+            payment_method_types: ['card'],
             line_items: [
                 ...validConfiguredItems.map((item) => {
                     const optionDescription = item.selectedOptionsSnapshot
