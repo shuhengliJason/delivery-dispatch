@@ -5,15 +5,14 @@ import {
     type Producer,
 } from 'kafkajs';
 
+import { getConfiguredBrokerList } from '@/lib/runtime-service-config';
+
 import { type LogEvent } from './log-event';
 
 let producerPromise: Promise<Producer> | undefined;
 
 export function getKafkaBrokers(): string[] {
-    return (process.env.KAFKA_BROKERS ?? 'localhost:9092')
-        .split(',')
-        .map((broker) => broker.trim())
-        .filter(Boolean);
+    return getConfiguredBrokerList('KAFKA_BROKERS');
 }
 
 export function getLogsTopic(): string {

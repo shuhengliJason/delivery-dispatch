@@ -3,6 +3,8 @@ import {
     type RedisClientType,
 } from 'redis';
 
+import { getConfiguredServiceUrl } from '@/lib/runtime-service-config';
+
 import { type RestaurantSearchSuggestion } from './restaurant-search-types';
 
 let redisClientPromise: Promise<RedisClientType> | undefined;
@@ -11,8 +13,8 @@ let redisClientPromise: Promise<RedisClientType> | undefined;
  * Redis is optional for correctness. If it is missing, autocomplete still works
  * through OpenSearch/Postgres; it is only here to speed up hot prefixes.
  */
-function getRedisUrl(): string {
-    return process.env.REDIS_URL ?? 'redis://localhost:6379';
+function getRedisUrl(): string | null {
+    return getConfiguredServiceUrl('REDIS_URL');
 }
 
 /**
@@ -37,10 +39,16 @@ function getCacheKey(prefix: string, limit: number): string {
  * Lazily creates and reuses one Redis connection for this Node process.
  */
 async function getRedisClient(): Promise<RedisClientType> {
+    const redisUrl = getRedisUrl();
+
+    if (!redisUrl) {
+        throw new Error('Redis autocomplete cache is not configured.');
+    }
+
     if (!redisClientPromise) {
         redisClientPromise = (async () => {
             const client = createClient({
-                url: getRedisUrl(),
+                url: redisUrl,
             });
 
             client.on('error', () => {

@@ -4,6 +4,7 @@ import {
 } from 'kafkajs';
 
 import { createKafkaClient } from '@/logging/kafka-client';
+import { getConfiguredBrokerList } from '@/lib/runtime-service-config';
 
 import { type RestaurantSearchEvent } from './restaurant-search-types';
 
@@ -14,6 +15,10 @@ let producerPromise: Promise<Producer> | undefined;
  */
 export function getRestaurantSearchTopic(): string {
     return process.env.RESTAURANT_SEARCH_KAFKA_TOPIC ?? 'restaurant.search.events';
+}
+
+export function areRestaurantSearchEventsConfigured(): boolean {
+    return getConfiguredBrokerList('KAFKA_BROKERS').length > 0;
 }
 
 /**
@@ -41,6 +46,10 @@ async function getProducer(): Promise<Producer> {
 export async function publishRestaurantSearchEvent(
     event: RestaurantSearchEvent,
 ): Promise<void> {
+    if (!areRestaurantSearchEventsConfigured()) {
+        return;
+    }
+
     const producer = await getProducer();
 
     await producer.send({

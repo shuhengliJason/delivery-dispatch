@@ -14,8 +14,14 @@ import {
     getCachedRestaurantSuggestions,
     setCachedRestaurantSuggestions,
 } from '@/search/redis-autocomplete-cache';
-import { searchRestaurantSuggestions } from '@/search/opensearch-restaurants';
-import { publishRestaurantSearchEvent } from '@/search/restaurant-search-events';
+import {
+    isRestaurantSearchConfigured,
+    searchRestaurantSuggestions,
+} from '@/search/opensearch-restaurants';
+import {
+    areRestaurantSearchEventsConfigured,
+    publishRestaurantSearchEvent,
+} from '@/search/restaurant-search-events';
 import { type RestaurantSearchSuggestion } from '@/search/restaurant-search-types';
 
 /**
@@ -32,6 +38,10 @@ function publishSearchPerformedEvent(
         source: string;
     },
 ): void {
+    if (!areRestaurantSearchEventsConfigured()) {
+        return;
+    }
+
     after(() => {
         return publishRestaurantSearchEvent({
             limit: input.limit,
@@ -157,24 +167,26 @@ export async function GET(request: NextRequest) {
         });
     }
 
-    try {
-        // Normal path: OpenSearch owns prefix ranking and suggestion lookup.
-        const suggestions = await searchRestaurantSuggestions(prefix, limit);
-        await setCachedRestaurantSuggestions(prefix, limit, suggestions);
-        publishSearchPerformedEvent({
-            limit,
-            prefix,
-            resultCount: suggestions.length,
-            source: 'opensearch',
-        });
+    if (isRestaurantSearchConfigured()) {
+        try {
+            // Normal path: OpenSearch owns prefix ranking and suggestion lookup.
+            const suggestions = await searchRestaurantSuggestions(prefix, limit);
+            await setCachedRestaurantSuggestions(prefix, limit, suggestions);
+            publishSearchPerformedEvent({
+                limit,
+                prefix,
+                resultCount: suggestions.length,
+                source: 'opensearch',
+            });
 
-        return NextResponse.json({
-            prefix,
-            source: 'opensearch',
-            suggestions,
-        });
-    } catch (error) {
-        console.warn('Falling back to Postgres restaurant autocomplete', error);
+            return NextResponse.json({
+                prefix,
+                source: 'opensearch',
+                suggestions,
+            });
+        } catch (error) {
+            console.warn('Falling back to Postgres restaurant autocomplete', error);
+        }
     }
 
     // Fallback path: slower, but correct because it reads from the main DB.

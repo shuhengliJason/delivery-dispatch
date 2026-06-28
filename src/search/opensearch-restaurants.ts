@@ -1,4 +1,5 @@
 import { getOpenSearchUrl } from '@/logging/opensearch-client';
+import { getConfiguredServiceUrl } from '@/lib/runtime-service-config';
 
 import {
     type RestaurantSearchDocument,
@@ -15,6 +16,12 @@ type SearchResponse = {
         }>;
     };
 };
+
+const openSearchRequestTimeoutMs = 1500;
+
+export function isRestaurantSearchConfigured(): boolean {
+    return getConfiguredServiceUrl('OPENSEARCH_URL') !== null;
+}
 
 /**
  * Allows local/dev/prod environments to use different autocomplete index names.
@@ -34,6 +41,7 @@ async function fetchOpenSearch(path: string, init?: RequestInit): Promise<Respon
             'content-type': 'application/json',
             ...init?.headers,
         },
+        signal: init?.signal ?? AbortSignal.timeout(openSearchRequestTimeoutMs),
     });
 }
 
