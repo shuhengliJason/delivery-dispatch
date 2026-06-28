@@ -588,6 +588,8 @@ export default function CustomerPage({
             isActive: isOrderHistoryView,
         },
     ];
+    const showCustomerSectionNav = !isRestaurantView;
+    const showMobileCartShortcut = isRestaurantView && activeCartItems.length > 0;
 
     function getInitialOptionSelections(menuItem: MenuItem): Record<string, string[]> {
         return Object.fromEntries(menuItem.optionGroups.map((group) => {
@@ -1031,14 +1033,23 @@ export default function CustomerPage({
     }
 
     return (
-        <main className="min-h-screen bg-slate-50 p-6">
+        <main className={`min-h-screen bg-slate-50 p-6 ${showMobileCartShortcut ? 'pb-24 md:pb-6' : ''}`}>
             <div className="mx-auto max-w-7xl">
                 <header className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                         <div>
                             <p className="text-sm font-semibold text-cyan-700">
-                                Customer App
+                                {isRestaurantView ? 'Restaurant ordering' : 'Customer App'}
                             </p>
+
+                            {isRestaurantView && (
+                                <Link
+                                    href="/customer"
+                                    className="mt-2 inline-flex rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                                >
+                                    Back to restaurants
+                                </Link>
+                            )}
 
                             <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">
                                 {pageTitle}
@@ -1089,25 +1100,27 @@ export default function CustomerPage({
                         </div>
                     </div>
 
-                    <nav
-                        aria-label="Customer sections"
-                        className="mt-5 grid gap-2 rounded-xl bg-slate-100 p-1 sm:grid-cols-3"
-                    >
-                        {navItems.map((item) => {
-                            return (
-                                <Link
-                                    key={item.href}
-                                    href={item.href}
-                                    aria-current={item.isActive ? 'page' : undefined}
-                                    className={`rounded-lg px-4 py-3 text-center text-sm font-bold transition ${item.isActive
-                                        ? 'bg-white text-slate-950 shadow-sm ring-1 ring-slate-200'
-                                        : 'text-slate-600 hover:bg-white/70 hover:text-slate-950'}`}
-                                >
-                                    {item.label}
-                                </Link>
-                            );
-                        })}
-                    </nav>
+                    {showCustomerSectionNav && (
+                        <nav
+                            aria-label="Customer sections"
+                            className="mt-5 grid gap-2 rounded-xl bg-slate-100 p-1 sm:grid-cols-3"
+                        >
+                            {navItems.map((item) => {
+                                return (
+                                    <Link
+                                        key={item.href}
+                                        href={item.href}
+                                        aria-current={item.isActive ? 'page' : undefined}
+                                        className={`rounded-lg px-4 py-3 text-center text-sm font-bold transition ${item.isActive
+                                            ? 'bg-white text-slate-950 shadow-sm ring-1 ring-slate-200'
+                                            : 'text-slate-600 hover:bg-white/70 hover:text-slate-950'}`}
+                                    >
+                                        {item.label}
+                                    </Link>
+                                );
+                            })}
+                        </nav>
+                    )}
                 </header>
 
                 {errorMessage && (
@@ -1494,14 +1507,7 @@ export default function CustomerPage({
                                     }}
                                 >
                                     <div className="max-w-2xl">
-                                        <Link
-                                            href="/customer"
-                                            className="inline-flex rounded-full bg-white/90 px-3 py-1 text-xs font-bold text-slate-950 shadow-sm hover:bg-white"
-                                        >
-                                            Back to restaurants
-                                        </Link>
-
-                                        <h2 className="mt-4 text-3xl font-bold">
+                                        <h2 className="text-3xl font-bold">
                                             {selectedRestaurant.name}
                                         </h2>
 
@@ -1575,7 +1581,10 @@ export default function CustomerPage({
                     </div>
 
                     {selectedRestaurant && (
-                    <aside className="h-fit rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <aside
+                        id="customer-cart"
+                        className="h-fit rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
+                    >
                         <h2 className="text-lg font-semibold text-slate-950">
                             Your Cart
                         </h2>
@@ -1723,6 +1732,20 @@ export default function CustomerPage({
                     </section>
                 )}
             </div>
+
+            {showMobileCartShortcut && (
+                <a
+                    href="#customer-cart"
+                    className="fixed inset-x-4 bottom-4 z-40 flex items-center justify-between rounded-xl bg-slate-950 px-4 py-3 text-sm font-bold text-white shadow-lg md:hidden"
+                >
+                    <span>
+                        View cart
+                    </span>
+                    <span>
+                        {activeCartItems.length} item{activeCartItems.length === 1 ? '' : 's'} / {formatCurrency(totalCents)}
+                    </span>
+                </a>
+            )}
 
             {configuringMenuItem && (
                 <div
